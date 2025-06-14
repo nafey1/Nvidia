@@ -1,0 +1,218 @@
+---
+- hosts: all
+  become: yes
+  remote_user: opc
+  become_user: root
+  gather_facts: true
+
+  vars:
+    CUDA_VERSION: cuda-toolkit-12-9
+      
+
+  tasks:
+
+## ONLY REQUIRED WHEN THE Oracle-Linux-Gen2-GPU Image is not used
+
+###################################################################
+##### For Linux 8 update the Python version before proceeding
+##### sudo dnf install -y python311
+##### sudo alternatives --set python3 /usr/bin/python3.11
+##### sudo alternatives --set python /usr/bin/python3.11
+###################################################################
+
+
+
+###############################
+## Extend Root File system
+###############################
+  - name: Extend the ROOT file system on the host (OCI Specific)
+    ansible.builtin.command: /usr/libexec/oci-growfs -y
+
+##############################
+## Install CUDA
+##############################
+  - name: Download CUDA Repo for OEL 9
+    get_url:
+      url: https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo
+      dest: /etc/yum.repos.d/cuda-rhel9.repo
+    when: 
+      - ansible_facts['distribution'] == "OracleLinux"
+      - ansible_facts['distribution_major_version'] == "9"
+
+  - name: Download CUDA Repo for OEL 8
+    get_url:
+      url: https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo
+      dest: /etc/yum.repos.d/cuda-rhel8.repo
+    when: 
+      - ansible_facts['distribution'] == "OracleLinux"
+      - ansible_facts['distribution_major_version'] == "8"
+
+  - name: Remove all cached package downloads and cached headers that contain information about remote packages 
+    ansible.builtin.command: dnf clean all
+
+  - name: Install Cuda ToolKit
+    ansible.builtin.dnf:
+      name: "{{ item }}"
+      state: present
+    loop:
+      - cuda-toolkit-12-9
+
+  - name: Ensure the ol9_developer_EPEL repository is enabled
+    community.general.dnf_config_manager:
+      name: ol9_developer_EPEL
+      state: enabled
+
+  - name: Install dkms Package
+    ansible.builtin.dnf:
+      name: "{{ item }}"
+      state: present
+    loop:
+      - dkms
+      - git
+      - cmake
+      - telnet
+
+  - name: Install Nvidia Driver Module 
+    ansible.builtin.command: dnf -y module install nvidia-driver:latest-dkms
+
+  - name: Ensure the ol9_developer_EPEL repository is disabled
+    community.general.dnf_config_manager:
+      name: ol9_developer_EPEL
+      state: disabled
+
+  - name: Environment Setup for the user
+    become: no
+    ansible.builtin.shell:
+      cmd: "{{ item }}"
+    loop:
+      - echo 'export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda-12.9/lib64' >>~/.bash_profile
+      - echo 'export PATH=${PATH}:/usr/local/cuda-12.9/bin' >>~/.bash_profile
+
+##############################
+######## Install Docker
+##############################
+  - name: Download Docker Repo
+    get_url:
+      url: https://download.docker.com/linux/centos/docker-ce.repo
+      dest: /etc/yum.repos.d/docker.repo
+
+  - name: Install Docker
+    ansible.builtin.dnf:
+      name: "{{ item }}"
+      state: latest
+    loop:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+
+  - name: Enable prometheus collection for Docker 
+    lineinfile:
+      path: /etc/docker/daemon.json
+      create: true
+      line: |
+        {
+          "metrics-addr" : "127.0.0.1:9323",
+          "experimental" : true
+        }
+
+  - name: Start Docker
+    ansible.builtin.systemd:
+      name: docker
+      state: started
+      enabled: true
+
+  - name: Add opc user to docker group
+    ansible.builtin.shell:
+      cmd: sudo usermod -aG docker opc
+
+  - name: GET the API Key for Nvidia Container Registry from the Local Environment variable
+    ansible.builtin.set_fact:
+      nvcr_api_key: "{{ lookup('env', 'NGC_API_KEY') }}"
+    delegate_to: localhost
+
+  - name: Log into NVIDIA Container Registry
+    community.docker.docker_login:
+      registry_url: nvcr.io
+      username: '$oauthtoken'
+      password: '{{nvcr_api_key}}'
+
+  - name: Pull the Docker Image for LLM
+    community.docker.docker_image:
+      name: "{{ item }}"
+      source: pull
+    loop:
+      - nvcr.io/nim/meta/llama3-8b-instruct:1.0.3
+
+#####################################
+## Install Nvidia Container Runtime
+#####################################
+  - name: Download Nvidia Container Runtime Repo for OEL
+    get_url:
+      url: https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo
+      dest: /etc/yum.repos.d/nvidia-container-toolkit.repo
+    when: 
+      - ansible_facts['distribution'] == "OracleLinux"
+
+  - name: Install Nvidia Container Runtime
+    ansible.builtin.dnf:
+      name: "{{ item }}"
+      state: present
+    loop:
+      - nvidia-container-toolkit
+
+  - name: Configure the Nvidia Container Runtime 
+    ansible.builtin.command: nvidia-ctk runtime configure --runtime=docker
+
+  - name: Restart Docker Service
+    ansible.builtin.systemd_service:
+      state: restarted
+      daemon_reload: true
+      name: docker
+
+  # - name: Create a directory for NIM Cache
+  #   become: false
+  #   ansible.builtin.file:
+  #     path: "~/.cache/nim"
+  #     state: directory
+  #     mode: '0755'
+
+  # - name: Create a llama3-8b-instruct container
+  #   become: false
+  #   community.docker.docker_container:
+  #     name: llama3-8b-instruct
+  #     image: nvcr.io/nim/meta/llama3-8b-instruct:1.0.0
+  #     published_ports: 8000:8000
+  #     user: 1000   
+  #     shm_size: 16G
+  #     # env: '{{nvcr_api_key}}'
+  #     volumes: "~/.cache/nim:/opt/nim/.cache" 
+  #     device_requests:
+  #     - driver: nvidia
+  #       count: -1 # this means we want all
+  #       capabilities:
+  #         - - gpu
+
+###################################################################################
+######## CUDA Samples
+######## Refer to the documentation here: https://github.com/nvidia/cuda-samples
+###################################################################################
+
+  - name: Clone a CUDA Samples repo for Testing GPUs
+    become: false
+    ansible.builtin.git:
+      repo: 'https://github.com/NVIDIA/cuda-samples.git'
+      dest: /home/opc/cuda-samples
+
+#####################################
+######## Reboot Server
+#####################################
+  - name: Recommended to Reboot Server after CUDA Installation
+    pause:
+      prompt: "Are you sure you want to Reboot the Server? (yes/or any other key to cancel)"
+    register: confirm_reboot
+
+  - name: Reboot machine
+    ansible.builtin.reboot:
+      msg: "Rebooting the Machine"
+    when: confirm_reboot.user_input | bool

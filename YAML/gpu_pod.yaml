@@ -1,0 +1,17 @@
+--- 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ai-workload
+spec:
+  containers:
+    - name: ai-workload
+      image: quay.io/jupyter/tensorflow-notebook:cuda-latest
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+  tolerations:
+  - key: "nvidia.com/gpu"
+    operator: "Equal"
+    value: "present"
+    effect: "NoSchedule"

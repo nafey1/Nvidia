@@ -170,11 +170,11 @@ Result = PASS
 ```
 
 ## Install the Proprietary Kernel Module Flavor
-Make sure to enable the 
+Make sure to enable the CodeReady Repository for the DKMS package.
 
-    dnf config-manager --set-enabled ol9_codeready_builder
+    sudo dnf config-manager --set-enabled ol9_codeready_builder
     sudo dnf -y module install nvidia-driver:latest-dkms
-    dnf config-manager --set-disabled ol9_codeready_builder
+    sudo dnf config-manager --set-disabled ol9_codeready_builder
 
 
 ## Install Nvidia Container Runtime

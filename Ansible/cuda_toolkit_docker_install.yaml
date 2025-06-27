@@ -31,14 +31,6 @@
 ##############################
 ## Install CUDA
 ##############################
-  - name: Download CUDA Repo for OEL 9
-    get_url:
-      url: https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo
-      dest: /etc/yum.repos.d/cuda-rhel9.repo
-    when: 
-      - ansible_facts['distribution'] == "OracleLinux"
-      - ansible_facts['distribution_major_version'] == "9"
-
   - name: Download CUDA Repo for OEL 8
     get_url:
       url: https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo
@@ -47,22 +39,34 @@
       - ansible_facts['distribution'] == "OracleLinux"
       - ansible_facts['distribution_major_version'] == "8"
 
+  - name: Download CUDA Repo for OEL 9
+    get_url:
+      url: https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo
+      dest: /etc/yum.repos.d/cuda-rhel9.repo
+    when: 
+      - ansible_facts['distribution'] == "OracleLinux"
+      - ansible_facts['distribution_major_version'] == "9"
+
   - name: Remove all cached package downloads and cached headers that contain information about remote packages 
     ansible.builtin.command: dnf clean all
-
-  - name: Install Cuda ToolKit
-    ansible.builtin.dnf:
-      name: "{{ item }}"
-      state: present
-    loop:
-      - cuda-toolkit-12-9
 
   - name: Ensure the ol9_developer_EPEL repository is enabled
     community.general.dnf_config_manager:
       name: ol9_developer_EPEL
       state: enabled
+    when: 
+      - ansible_facts['distribution'] == "OracleLinux"
+      - ansible_facts['distribution_major_version'] == "9"      
 
-  - name: Install dkms Package
+  - name: Ensure the ol8_developer_EPEL repository is enabled
+    community.general.dnf_config_manager:
+      name: ol8_developer_EPEL
+      state: enabled
+    when: 
+      - ansible_facts['distribution'] == "OracleLinux"
+      - ansible_facts['distribution_major_version'] == "8"        
+
+  - name: Install dkms Package (and a few others)
     ansible.builtin.dnf:
       name: "{{ item }}"
       state: present
@@ -72,13 +76,31 @@
       - cmake
       - telnet
 
+  - name: Install Cuda ToolKit
+    ansible.builtin.dnf:
+      name: "{{ item }}"
+      state: present
+    loop:
+      - cuda-toolkit-12-9
+
   - name: Install Nvidia Driver Module 
     ansible.builtin.command: dnf -y module install nvidia-driver:latest-dkms
+
+  - name: Ensure the ol8_developer_EPEL repository is disabled
+    community.general.dnf_config_manager:
+      name: ol8_developer_EPEL
+      state: disabled
+    when: 
+      - ansible_facts['distribution'] == "OracleLinux"
+      - ansible_facts['distribution_major_version'] == "8"     
 
   - name: Ensure the ol9_developer_EPEL repository is disabled
     community.general.dnf_config_manager:
       name: ol9_developer_EPEL
       state: disabled
+    when: 
+      - ansible_facts['distribution'] == "OracleLinux"
+      - ansible_facts['distribution_major_version'] == "9"          
 
   - name: Environment Setup for the user
     become: no

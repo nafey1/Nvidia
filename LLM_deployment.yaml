@@ -1,0 +1,61 @@
+
+image:
+  repository: nvcr.io/nim/meta/llama3-8b-instruct
+  pullPolicy: IfNotPresent
+imagePullSecrets:
+  - name: ngc-secret 
+replicaCount: 1 # replicaCount Specify static replica count for deployment.
+resources:
+  limits:
+    nvidia.com/gpu: 1 # Request 1 GPU, adjust as needed
+statefulSet:
+  enabled: false
+tolerations:
+  - key: "nvidia.com/gpu"
+    operator: "Exists"
+    effect: "NoSchedule"
+nodeSelector:
+  nvidia.com/gpu: "true"
+
+livenessProbe:
+  enabled: true
+  method: http
+  command:
+    - myscript.sh
+  path: /v1/health/live
+  initialDelaySeconds: 15
+  timeoutSeconds: 1
+  periodSeconds: 10
+  successThreshold: 1
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  path: /v1/health/ready  
+  initialDelaySeconds: 15
+  timeoutSeconds: 1
+  periodSeconds: 10
+  successThreshold: 1
+  failureThreshold: 3
+
+startupProbe:
+  enabled: true
+  path: /v1/health/ready  
+  initialDelaySeconds: 40
+  timeoutSeconds: 5
+  periodSeconds: 10
+  successThreshold: 1
+  failureThreshold: 300 # Changed from 180
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+persistence:
+  enabled: true
+  storageClass: "customer-key" # Specify the storage class for persistent volume
+  accessMode: ReadWriteOnce 
+  stsPersistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  size: 50Gi  

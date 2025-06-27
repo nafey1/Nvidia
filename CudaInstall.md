@@ -221,7 +221,9 @@ Pull and run the NVIDIA NIM with the command below. This will download the optim
         -v "$LOCAL_NIM_CACHE:/opt/nim/.cache" \
         -u $(id -u) \
         -p 8000:8000 \
-        nvcr.io/nim/meta/llama3-8b-instruct:1.0.0
+        nvcr.io/nim/meta/llama3-8b-instruct:1.0.3
+
+> To run the Docker container in the deamon mode use the **-d** flag        
 
 You can now make a local API call using this curl command:
 
@@ -231,9 +233,40 @@ You can now make a local API call using this curl command:
     -H 'Content-Type: application/json' \
     -d '{
         "model": "meta/llama3-8b-instruct",
-        "messages": [{"role":"user", "content":"Write a limerick about the wonders of GPU computing."}],
-        "max_tokens": 64
+        "messages": [{"role":"user", "content":"What is Spain famous for?"}],
+        "max_tokens": 6000
     }'
+
+## Format and prettify curl JSON output
+
+### Using python
+
+    curl -X 'POST' \
+    'http://0.0.0.0:8000/v1/chat/completions' \
+    -H 'accept: application/json' \
+    -H 'Content-Type: application/json' \
+    -d '{
+        "model": "meta/llama3-8b-instruct",
+        "messages": [{"role":"user", "content":"What is Spain famous for?"}],
+        "max_tokens": 64
+    }' | python3 -m json.tool
+
+> The json.tool module provides a simple command line interface to validate and pretty-print JSON objects.
+
+
+### Using jq 
+    curl -X 'POST' \
+    'http://0.0.0.0:8000/v1/chat/completions' \
+    -H 'accept: application/json' \
+    -H 'Content-Type: application/json' \
+    -d '{
+        "model": "meta/llama3-8b-instruct",
+        "messages": [{"role":"user", "content":"What is Spain famous for?"}],
+        "max_tokens": 64
+    }' | jq '.'
+
+>jq is a lightweight and flexible command-line JSON processor.
+
 
 # Links
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/)
@@ -244,4 +277,4 @@ You can now make a local API call using this curl command:
 
 [Installing the NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
 
-[Downlaond Nvidia Models](https://build.nvidia.com/models)
+[Download Nvidia Models](https://build.nvidia.com/models)

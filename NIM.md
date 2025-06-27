@@ -1,4 +1,4 @@
-# NIM on Kubernetes for LLM Deployments 
+# NIM on Kubernetes for LLM Deployments
 
 ## 1. Download the NIM for Helm Charts
 >**Make sure to export the value NGC_API_KEY before attempting the following operations**
@@ -47,7 +47,7 @@ Labels:             beta.kubernetes.io/instance-type=VM.GPU.A10.1
 Taints:             nvidia.com/gpu=present:NoSchedule
 ```
 ### 2.3 Deploy NIM
-Create the Yaml file for Deployment and save as **llama.yaml**
+Create the Yaml file for Deployment and save as **LLM_deployment.yaml**
 
 ```yaml
 
@@ -111,7 +111,7 @@ persistence:
 
 
 ```bash
-$helm install llama -n nim nim-llm-1.7.0.tgz -f llama.yaml
+helm install llama -n nim nim-llm-1.7.0.tgz -f LLM_deployment.yaml
 NAME: llama
 LAST DEPLOYED: Mon May 26 01:48:29 2025
 NAMESPACE: nim
@@ -183,4 +183,10 @@ curl "http://localhost:8000/v1/chat/completions" \
 ```
 
 # Links
+[NIM Deployment with Helm](https://docs.nvidia.com/nim/large-language-models/latest/deploy-helm.html)
+
 [NIM Download](https://catalog.ngc.nvidia.com/orgs/nim/helm-charts/nim-llm)
+
+[Nvidia NIM Supported Models](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html)
+
+[Nvidia Monitoing with Prometheus](https://docs.nvidia.com/datacenter/cloud-native/gpu-telemetry/latest/kube-prometheus.html)

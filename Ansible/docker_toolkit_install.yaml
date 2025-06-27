@@ -1,0 +1,72 @@
+---
+- hosts: all
+  become: yes
+  remote_user: opc
+  become_user: root
+  gather_facts: true
+
+  tasks:
+
+
+###############################
+## Extend Root File system
+###############################
+  - name: Extend the ROOT file system on the host (OCI Specific)
+    ansible.builtin.command: /usr/libexec/oci-growfs -y
+
+
+##############################
+######## Install Docker
+##############################
+  - name: Download Docker Repo
+    get_url:
+      url: https://download.docker.com/linux/centos/docker-ce.repo
+      dest: /etc/yum.repos.d/docker.repo
+
+  - name: Install Docker
+    ansible.builtin.dnf:
+      name: "{{ item }}"
+      state: latest
+    loop:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+
+  - name: Enable prometheus collection for Docker 
+    lineinfile:
+      path: /etc/docker/daemon.json
+      create: true
+      line: |
+        {
+          "metrics-addr" : "127.0.0.1:9323",
+          "experimental" : true
+        }
+
+  - name: Start Docker
+    ansible.builtin.systemd:
+      name: docker
+      state: started
+      enabled: true
+
+  - name: Add opc user to docker group
+    ansible.builtin.shell:
+      cmd: sudo usermod -aG docker opc
+
+  - name: GET the API Key for Nvidia Container Registry from the Local Environment variable
+    ansible.builtin.set_fact:
+      nvcr_api_key: "{{ lookup('env', 'NGC_API_KEY') }}"
+    delegate_to: localhost
+
+  - name: Log into NVIDIA Container Registry
+    community.docker.docker_login:
+      registry_url: nvcr.io
+      username: '$oauthtoken'
+      password: '{{nvcr_api_key}}'
+
+  - name: Pull the Docker Image for LLM
+    community.docker.docker_image:
+      name: "{{ item }}"
+      source: pull
+    loop:
+      - nvcr.io/nim/meta/llama3-8b-instruct:1.0.3

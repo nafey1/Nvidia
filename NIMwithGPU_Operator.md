@@ -53,7 +53,6 @@ metadata:
   name: llama3-8b-instruct # Change as per requirement
   namespace: nim-service
 spec:
-spec:
   image:
     repository: nvcr.io/nim/meta/llama3-8b-instruct # Change as per requirement
     tag: 1.0.3
@@ -79,8 +78,7 @@ spec:
 
 ## 6. Test the Deployed NIM
 ```bash
-kubectl run --rm -it -n default curl --image=curlimages/curl:latest -- ash
-
+kubectl run --rm -it -n default curl --image=curlimages/curl:latest -- sh
 
 curl -X "POST" \
  'http://llama3-8b-instruct.nim-service:8000/v1/chat/completions' \
